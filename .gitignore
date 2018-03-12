@@ -1,0 +1,7 @@
+*.ign
+*.ign.merged
+*.img
+*.vmdk
+*.log
+shared/
+.vagrant/
