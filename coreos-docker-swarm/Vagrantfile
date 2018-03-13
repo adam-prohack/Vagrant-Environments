@@ -16,7 +16,7 @@ configuration = {
     "nodes_count" => ENV["VAGRANT_NODES_COUNT"] ? Integer(ENV["VAGRANT_NODES_COUNT"]) : 4,
     "node_memory" => ENV["VAGRANT_NODE_MEMORY"] ? Integer(ENV["VAGRANT_NODE_MEMORY"]) : 1024,
     "node_cpus" => ENV["VAGRANT_NODE_CPUS"] ? Integer(ENV["VAGRANT_NODE_CPUS"]) : 1,
-    "node_cpu_execution_cap" => ENV["VAGRANT_NODE_EXECUTION_CPU"] ? Integer(ENV["VAGRANT_NODE_EXECUTION_CPU"]) : 90
+    "node_cpu_execution_cap" => ENV["VAGRANT_NODE_CPU_EXECUTION_CAP"] ? Integer(ENV["VAGRANT_NODE_CPU_EXECUTION_CAP"]) : 90
 }
 `rm -f config/config.ign`
 `rm -f config/config.ign.merged`
