@@ -1,0 +1,9 @@
+passwd:
+  users:
+    - name: core
+locksmith:
+  reboot_strategy: "off"
+systemd:
+  units:
+    - name: "fleet.service"
+      enable: true
