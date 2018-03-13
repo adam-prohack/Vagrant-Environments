@@ -1,0 +1,92 @@
+Vagrant.require_version ">= 1.9.0"
+
+# Check required plugins
+["vagrant-ignition", "vagrant-triggers"].each do |plugin|
+    if not Vagrant.has_plugin?(plugin)
+        `vagrant plugin install #{plugin}`
+    end
+end
+
+# Configuration
+configuration = {
+    "docker_compose_version" => ENV["VAGRANT_DOCKER_COMPOSE_VERSION"] ? ENV["VAGRANT_DOCKER_COMPOSE_VERSION"] : "1.19.0",
+    "coreos_version" => ENV["VAGRANT_COREOS_VERSION"] ? ENV["VAGRANT_COREOS_VERSION"] : "1702.1.0",
+    "machine_prefix" => ENV["VAGRANT_MACHINE_PREFIX"] ? ENV["VAGRANT_MACHINE_PREFIX"] : "coreos-docker-swarm",
+    "ip_prefix" => ENV["VAGRANT_MACHINE_IP_PREFIX"] ? ENV["VAGRANT_MACHINE_IP_PREFIX"] : "172.17.8",
+    "nodes_count" => ENV["VAGRANT_NODES_COUNT"] ? Integer(ENV["VAGRANT_NODES_COUNT"]) : 4,
+    "node_memory" => ENV["VAGRANT_NODE_MEMORY"] ? Integer(ENV["VAGRANT_NODE_MEMORY"]) : 1024,
+    "node_cpus" => ENV["VAGRANT_NODE_CPUS"] ? Integer(ENV["VAGRANT_NODE_CPUS"]) : 1,
+    "node_cpu_execution_cap" => ENV["VAGRANT_NODE_EXECUTION_CPU"] ? Integer(ENV["VAGRANT_NODE_EXECUTION_CPU"]) : 90
+}
+`rm -f config/config.ign`
+`rm -f config/config.ign.merged`
+`ct --in-file config/config.yml > config/config.ign`
+
+Vagrant.configure("2") do |config|
+    config.vm.box = "coreos-alpha"
+    config.vm.box_url = "https://alpha.release.core-os.net/amd64-usr/#{configuration["coreos_version"]}/coreos_production_vagrant_virtualbox.json"
+    config.vm.box_check_update = true    
+
+    config.ssh.insert_key = false
+    config.ssh.forward_agent = true
+    config.ignition.enabled = true
+    config.ignition.path = "./config/config.ign"
+    
+    # Master machine definiton
+    swarm_join_command = ""
+    config.vm.define "#{configuration["machine_prefix"]}-master", primary: true do |master_machine|
+        # Install docker compose
+        master_machine.vm.provision "shell", path: "scripts/setup_master.sh", args: [
+            configuration["docker_compose_version"]
+        ]
+        
+        # Configure machine
+        master_machine.vm.hostname = "#{configuration["machine_prefix"]}-master"
+        master_machine.vm.network :private_network, ip: "#{configuration["ip_prefix"]}.0"
+        master_machine.vm.provider :virtualbox do |provider|
+            provider.gui = false
+            provider.memory = configuration["node_memory"]
+            provider.cpus = configuration["node_cpus"]
+            provider.customize ["modifyvm", :id, "--cpuexecutioncap", configuration["node_cpu_execution_cap"]]
+            provider.check_guest_additions = false
+            provider.functional_vboxsf = false
+
+            master_machine.ignition.ip = "#{configuration["ip_prefix"]}.0"
+            master_machine.ignition.config_obj = provider
+            master_machine.ignition.hostname = "#{configuration["machine_prefix"]}-master"
+            master_machine.ignition.drive_name = "ignition-#{configuration["machine_prefix"]}-master"
+        end
+
+        # Init swarm master
+        master_machine.trigger.after :up do
+            swarm_join_command = `vagrant ssh #{configuration["machine_prefix"]}-master -c "docker swarm init --advertise-addr #{configuration["ip_prefix"]}.0 | grep 'docker swarm join --token'"`
+        end
+    end
+
+    # Nodes machines definitions
+    (1..configuration["nodes_count"]).each do |node_id|        
+        config.vm.define "#{configuration["machine_prefix"]}-#{node_id}" do |node_machine|
+            # Configure machine
+            node_machine.vm.hostname = "#{configuration["machine_prefix"]}-#{node_id}"
+            node_machine.vm.network :private_network, ip: "#{configuration["ip_prefix"]}.#{node_id+100}"
+            node_machine.vm.provider :virtualbox do |provider|
+                provider.gui = false
+                provider.memory = configuration["node_memory"]
+                provider.cpus = configuration["node_cpus"]
+                provider.customize ["modifyvm", :id, "--cpuexecutioncap", configuration["node_cpu_execution_cap"]]
+                provider.check_guest_additions = false
+                provider.functional_vboxsf = false
+
+                node_machine.ignition.ip = "#{configuration["ip_prefix"]}.#{node_id+100}"
+                node_machine.ignition.config_obj = provider
+                node_machine.ignition.hostname = "#{configuration["machine_prefix"]}-#{node_id}"
+                node_machine.ignition.drive_name = "ignition-#{configuration["machine_prefix"]}-#{node_id}"
+            end
+
+            # Join to swarm
+            node_machine.trigger.after :up do
+                `vagrant ssh #{configuration["machine_prefix"]}-#{node_id} -c "#{swarm_join_command}"`
+            end
+        end
+    end
+end
