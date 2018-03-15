@@ -1,0 +1,91 @@
+Vagrant.require_version ">= 1.9.0"
+
+# Check required plugins
+["vagrant-ignition", "vagrant-triggers"].each do |plugin|
+    if not Vagrant.has_plugin?(plugin)
+        `vagrant plugin install #{plugin}`
+    end
+end
+
+# Configuration
+configuration = {
+    "coreos_version" => ENV["VAGRANT_COREOS_VERSION"] ? ENV["VAGRANT_COREOS_VERSION"] : "1702.1.0",
+    "machine_prefix" => ENV["VAGRANT_MACHINE_PREFIX"] ? ENV["VAGRANT_MACHINE_PREFIX"] : "coreos-rancher-kubernates",
+    "ip_prefix" => ENV["VAGRANT_MACHINE_IP_PREFIX"] ? ENV["VAGRANT_MACHINE_IP_PREFIX"] : "172.17.8",
+    "nodes_count" => ENV["VAGRANT_NODES_COUNT"] ? Integer(ENV["VAGRANT_NODES_COUNT"]) : 3,
+    "node_memory" => ENV["VAGRANT_NODE_MEMORY"] ? Integer(ENV["VAGRANT_NODE_MEMORY"]) : 1024,
+    "node_cpus" => ENV["VAGRANT_NODE_CPUS"] ? Integer(ENV["VAGRANT_NODE_CPUS"]) : 1,
+    "node_cpu_execution_cap" => ENV["VAGRANT_NODE_CPU_EXECUTION_CAP"] ? Integer(ENV["VAGRANT_NODE_CPU_EXECUTION_CAP"]) : 90,
+    "rancher_cluster_name" => ENV["RANCHER_CLUSTER_NAME"] ? ENV["RANCHER_CLUSTER_NAME"] : "vagrant-cluster",
+    "rancher_login" => ENV["RANCHER_SERVER_LOGIN"] ? ENV["RANCHER_SERVER_LOGIN"] : "admin",
+    "rancher_password" => ENV["RANCHER_SERVER_PASSWORD"] ? ENV["RANCHER_SERVER_PASSWORD"] : "admin",
+    "rancher_version" => ENV["RANCHER_SERVER_VERSION"] ? ENV["RANCHER_SERVER_VERSION"] : "preview"
+}
+`rm -f config/config.ign`
+`rm -f config/config.ign.merged`
+`ct --in-file config/config.yml > config/config.ign`
+
+Vagrant.configure("2") do |config|
+    config.vm.box = "coreos-alpha"
+    config.vm.box_url = "https://alpha.release.core-os.net/amd64-usr/#{configuration["coreos_version"]}/coreos_production_vagrant_virtualbox.json"
+    config.vm.box_check_update = true    
+
+    config.ssh.insert_key = false
+    config.ssh.forward_agent = true
+    config.ignition.enabled = true
+    config.ignition.path = "./config/config.ign"
+
+    # Master machine    
+    config.vm.define "#{configuration["machine_prefix"]}-master" do |master_machine|        
+        master_machine.vm.provision "shell", path: "scripts/setup_master.sh", args: [
+            "#{configuration["ip_prefix"]}.0",
+            configuration["rancher_version"],
+            configuration["rancher_login"],
+            configuration["rancher_password"],
+            configuration["rancher_cluster_name"]
+        ]
+        master_machine.vm.hostname = "#{configuration["machine_prefix"]}-master"
+        master_machine.vm.network :private_network, ip: "#{configuration["ip_prefix"]}.0"
+        master_machine.vm.provider :virtualbox do |provider|
+            provider.gui = false
+            provider.memory = 4096
+            provider.cpus = 1
+            provider.customize ["modifyvm", :id, "--cpuexecutioncap", "100"]
+            provider.check_guest_additions = false
+            provider.functional_vboxsf = false
+
+            master_machine.ignition.ip = "#{configuration["ip_prefix"]}.0"
+            master_machine.ignition.config_obj = provider
+            master_machine.ignition.hostname = "#{configuration["machine_prefix"]}-master"
+            master_machine.ignition.drive_name = "ignition-#{configuration["machine_prefix"]}-master"
+        end
+    end
+
+    # Nodes machines
+    (1..configuration["nodes_count"]).each do |node_id|        
+        config.vm.define "#{configuration["machine_prefix"]}-node#{node_id}" do |node_machine|
+            node_machine.vm.provision "shell", path: "scripts/setup_node.sh", args: [
+                "#{configuration["ip_prefix"]}.0",
+                configuration["rancher_version"],
+                configuration["rancher_login"],
+                configuration["rancher_password"],
+                configuration["rancher_cluster_name"]
+            ]
+            node_machine.vm.hostname = "#{configuration["machine_prefix"]}-#{node_id}"
+            node_machine.vm.network :private_network, ip: "#{configuration["ip_prefix"]}.#{node_id+100}"
+            node_machine.vm.provider :virtualbox do |provider|
+                provider.gui = false
+                provider.memory = configuration["node_memory"]
+                provider.cpus = configuration["node_cpus"]
+                provider.customize ["modifyvm", :id, "--cpuexecutioncap", configuration["node_cpu_execution_cap"]]
+                provider.check_guest_additions = false
+                provider.functional_vboxsf = false
+                
+                node_machine.ignition.ip = "#{configuration["ip_prefix"]}.#{node_id+100}"
+                node_machine.ignition.config_obj = provider
+                node_machine.ignition.hostname = "#{configuration["machine_prefix"]}-#{node_id}"
+                node_machine.ignition.drive_name = "ignition-#{configuration["machine_prefix"]}-#{node_id}"
+            end
+        end
+    end
+end
