@@ -19,7 +19,7 @@ configuration = {
     "rancher_cluster_name" => ENV["RANCHER_CLUSTER_NAME"] ? ENV["RANCHER_CLUSTER_NAME"] : "vagrant-cluster",
     "rancher_login" => ENV["RANCHER_SERVER_LOGIN"] ? ENV["RANCHER_SERVER_LOGIN"] : "admin",
     "rancher_password" => ENV["RANCHER_SERVER_PASSWORD"] ? ENV["RANCHER_SERVER_PASSWORD"] : "admin",
-    "rancher_version" => ENV["RANCHER_SERVER_VERSION"] ? ENV["RANCHER_SERVER_VERSION"] : "preview"
+    "rancher_version" => ENV["RANCHER_SERVER_VERSION"] ? ENV["RANCHER_SERVER_VERSION"] : "v2.0.2"
 }
 `rm -f config/config.ign`
 `rm -f config/config.ign.merged`
