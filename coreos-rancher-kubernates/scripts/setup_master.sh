@@ -8,7 +8,7 @@ rancher_password=$4
 rancher_cluster_name=$5
 
 # Install rancher server
-sudo docker run -d --restart=unless-stopped -p 80:80 -p 443:443 rancher/server:$rancher_version
+sudo docker run -d --restart=unless-stopped -p 80:80 -p 443:443 rancher/rancher:$rancher_version
 while true; do
     wget -T 5 -c https://$rancher_server_ip --no-check-certificate && break
     sleep 10
@@ -48,13 +48,3 @@ cluster_id=$(
         --insecure | jq -r .id
 )
 echo $cluster_id
-
-# Create agent token
-agent_token=$(
-    curl "https://$rancher_server_ip/v3/clusterregistrationtoken" \
-        -H 'content-type: application/json' \
-        -H "Authorization: Bearer $api_token" \
-        --data-binary '{"type":"clusterRegistrationToken","clusterId":"'$cluster_id'"}' \
-        --insecure | jq -r .token
-)
-echo $agent_token
