@@ -21,7 +21,7 @@ echo $login_token
 
 # Get cluster id
 cluster_id=$(
-    curl "https://$rancher_server_ip/v3/clusters?name='$rancher_cluster_name'" \
+    curl "https://$rancher_server_ip/v3/clusters?name=$rancher_cluster_name" \
         -H 'content-type: application/json' \
         -H "Authorization: Bearer $login_token" \
         --insecure | jq -r .data[].id
@@ -36,12 +36,16 @@ agent_image=$(
 )
 echo $agent_image
 
-# Get agent token
+# Create agent token
 agent_token=$(
-    curl "https://$rancher_server_ip/v3/clusterregistrationtoken?name='$cluster_id'" \
+    curl "https://$rancher_server_ip/v3/clusters/$cluster_id/clusterregistrationtoken" \
+        -H 'content-type: application/json' \
         -H "Authorization: Bearer $login_token" \
-        --insecure | jq -r .data[].token
+        --data-binary '{"type":"clusterRegistrationToken","clusterId":"'$cluster_id'"}' \
+        --insecure | jq -r .token
 )
+
+# Get agent token
 echo $agent_token
 
 # Get CA checksum
@@ -53,24 +57,12 @@ ca_checksum=$(
 echo $ca_checksum
 
 # Install agent
-docker run -d --restart=unless-stopped -v /var/run/docker.sock:/var/run/docker.sock --net=host $agent_image \
+sudo docker run -d \
+    --privileged --restart=unless-stopped --net=host \
+    -v /etc/kubernetes:/etc/kubernetes \
+    -v /var/run:/var/run \
+    $agent_image \
     --server https://$rancher_server_ip \
     --token $agent_token \
     --ca-checksum $ca_checksum \
-    --address $agent_ip \
-    --internal-address $agent_ip \
     --etcd --controlplane --worker
-
-# Check agent status
-while true; do
-    nodes_list=$(
-        curl "https://$rancher_server_ip/v3/nodes?limit=-1" \
-            -H "Authorization: Bearer $login_token" \
-            --insecure | jq '.data[] | .customConfig.internalAddress + "-" + .state'
-    )
-    echo $nodes_list
-    if [[ $nodes_list = *"$agent_ip-active"* ]]; then
-        break
-    fi
-    sleep 15
-done
