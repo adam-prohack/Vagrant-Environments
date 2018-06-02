@@ -6,10 +6,12 @@ rancher_version=$2
 rancher_login=$3
 rancher_password=$4
 rancher_cluster_name=$5
-rancher_node_id=$6
 
 # Get agent ip
 agent_ip=`ip addr show eth1 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1`
+
+# Get node id
+node_id=`ip addr show eth1 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1 | cut -d . -f 4`
 
 # Login to rancher server
 login_token=$(
@@ -66,5 +68,6 @@ sudo docker run -d \
     --server https://$rancher_server_ip \
     --token $agent_token \
     --ca-checksum $ca_checksum \
-    --internal-address 10.0.2.$($rancher_node_id+1) \
+    --address 10.0.2.$node_id \
+    --internal-address 10.0.2.$node_id \
     --etcd --controlplane --worker
