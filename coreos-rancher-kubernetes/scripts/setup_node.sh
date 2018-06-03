@@ -64,6 +64,6 @@ sudo docker run -d --privileged --restart=unless-stopped --net=host \
     -v /etc/kubernetes:/etc/kubernetes -v /var/run:/var/run \
     $agent_image \
     --server https://$rancher_server_ip \
-    --token $agent_token --ca-checksum $ca_checksum
+    --token $agent_token --ca-checksum $ca_checksum \
     --address $agent_ip --internal-address $agent_ip \
     --etcd --controlplane --worker
