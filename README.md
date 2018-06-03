@@ -28,8 +28,8 @@
 * **VAGRANT_COREOS_VERSION** - coreos version, default: *1702.1.0*
 * **VAGRANT_MACHINE_PREFIX** - machine name prefix, default: *coreos-rancher-kubernetes*
 * **VAGRANT_MACHINE_IP_PREFIX** - machine ip prefix, default *172.17.8*
-* **VAGRANT_NODES_COUNT** - nodes count, default: *3*
-* **VAGRANT_NODE_MEMORY** - single node memory, default: *1024*
+* **VAGRANT_NODES_COUNT** - nodes count, default: *2*
+* **VAGRANT_NODE_MEMORY** - single node memory, default: *1536*
 * **VAGRANT_NODE_CPUS** - single node cpus count, default: *1*
 * **VAGRANT_NODE_CPU_EXECUTION_CAP** - single node cpu execution, default: *90*
 * **RANCHER_CLUSTER_NAME** - rancher cluster name, default *vagrant-cluster*
