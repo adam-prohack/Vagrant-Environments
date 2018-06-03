@@ -15,7 +15,7 @@ node_id=`ip addr show eth1 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1 | cu
 
 # Login to rancher server
 login_token=$(
-    curl "https://$rancher_server_ip/v3-public/localProviders/local?action=login" \
+    curl -s "https://$rancher_server_ip/v3-public/localProviders/local?action=login" \
         -H 'content-type: application/json' \
         --data-binary '{"username":"'$rancher_login'","password":"'$rancher_password'"}' \
         --insecure | jq -r .token
@@ -24,7 +24,7 @@ echo $login_token
 
 # Get cluster id
 cluster_id=$(
-    curl "https://$rancher_server_ip/v3/clusters?name=$rancher_cluster_name" \
+    curl -s "https://$rancher_server_ip/v3/clusters?name=$rancher_cluster_name" \
         -H 'content-type: application/json' \
         -H "Authorization: Bearer $login_token" \
         --insecure | jq -r .data[].id
@@ -33,7 +33,7 @@ echo $cluster_id
 
 # Get agent image name
 agent_image=$(
-    curl "https://$rancher_server_ip/v3/settings/agent-image" \
+    curl -s "https://$rancher_server_ip/v3/settings/agent-image" \
         -H "Authorization: Bearer $login_token" \
         --insecure | jq -r .value
 )
@@ -41,7 +41,7 @@ echo $agent_image
 
 # Create agent token
 agent_token=$(
-    curl "https://$rancher_server_ip/v3/clusters/$cluster_id/clusterregistrationtoken" \
+    curl -s "https://$rancher_server_ip/v3/clusters/$cluster_id/clusterregistrationtoken" \
         -H 'content-type: application/json' \
         -H "Authorization: Bearer $login_token" \
         --data-binary '{"type":"clusterRegistrationToken","clusterId":"'$cluster_id'"}' \
@@ -53,21 +53,17 @@ echo $agent_token
 
 # Get CA checksum
 ca_checksum=$(
-    curl "https://$rancher_server_ip/v3/settings/cacerts" \
+    curl -s "https://$rancher_server_ip/v3/settings/cacerts" \
         -H "Authorization: Bearer $login_token" \
         --insecure | jq -r .value | sha256sum | awk '{ print $1 }'
 )
 echo $ca_checksum
 
 # Install agent
-sudo docker run -d \
-    --privileged --restart=unless-stopped --net=host \
-    -v /etc/kubernetes:/etc/kubernetes \
-    -v /var/run:/var/run \
+sudo docker run -d --privileged --restart=unless-stopped --net=host \
+    -v /etc/kubernetes:/etc/kubernetes -v /var/run:/var/run \
     $agent_image \
     --server https://$rancher_server_ip \
-    --token $agent_token \
-    --ca-checksum $ca_checksum \
-    --address 10.0.2.$node_id \
-    --internal-address 10.0.2.$node_id \
+    --token $agent_token --ca-checksum $ca_checksum
+    --address $agent_ip --internal-address $agent_ip \
     --etcd --controlplane --worker
